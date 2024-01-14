@@ -29,7 +29,7 @@ def send_to_database(event_name, event_time):
 def schedule_event(event_name, event_time, event_month):
     # Add your scheduling logic here
     # This is a placeholder, modify based on your project requirements
-    current_year = datetime.now().year
+    current_year = str(datetime.now().year)  # Convert to string
     event_date_str = f"{event_month} {event_time} {current_year}"
     event_date = datetime.strptime(event_date_str, "%B %d %I:%M %p %Y")
 
@@ -50,7 +50,7 @@ def alert_user(event_name, event_time):
     engine.runAndWait()
 
 def parse_spoken_text(spoken_text):
-    # Basic example: "Schedule meeting at 3 PM on November 15th"
+    # Basic example: "Schedule meeting at 3 PM on January 20th"
     # Extract event name, time, and month from spoken text
     # Modify this based on your specific requirements
 
@@ -61,7 +61,16 @@ def parse_spoken_text(spoken_text):
     if time_index != -1 and on_index != -1:
         event_name = spoken_text[9:time_index - 1]
         event_time = spoken_text[time_index + 3:on_index - 1]
-        event_month = spoken_text[on_index + 3:]
+
+        # Extract day and remove suffix
+        day_str = spoken_text[on_index + 3:].split()[0]
+        day = ''.join(filter(str.isdigit, day_str))
+
+        # Month can be extracted directly
+        event_month = spoken_text[on_index + 3:].replace(day_str, '').strip()
+
+        # Append day to month and return
+        event_month += f" {day}"
 
         return event_name, event_time, event_month
 
