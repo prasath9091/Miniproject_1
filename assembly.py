@@ -9,7 +9,7 @@ import os
 engine = pyttsx3.init()
 
 # Set your AssemblyAI API key
-assemblyai_api_key = "a938ad6c3b98448f8ed1a872016e65dd"
+assemblyai_api_key = "421d543a6522429a998186f878d00939"
 
 # Get the current script's directory
 script_dir = os.path.dirname(os.path.abspath(__file__))
