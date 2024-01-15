@@ -4,12 +4,10 @@ import speech_recognition as sr
 import pyttsx3
 import sqlite3
 import os
+import dateutil.parser  # Added import for dateutil.parser
 
 # Initialize pyttsx3
 engine = pyttsx3.init()
-
-# Set your AssemblyAI API key
-assemblyai_api_key = "421d543a6522429a998186f878d00939"
 
 # Get the current script's directory
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -31,30 +29,37 @@ cursor.execute('''
 ''')
 conn.commit()
 
-def get_response_from_assemblyai(audio_data):
-    url = "https://api.assemblyai.com/v2/realtime/stream"
+def extract_time_and_month(text):
+    try:
+        # Use dateutil.parser.parse for flexible parsing
+        parsed_date = dateutil.parser.parse(text, fuzzy=True)
+        
+        # Format the parsed date as strings
+        formatted_time = parsed_date.strftime("%I:%M %p")
+        formatted_month = parsed_date.strftime("%B")
 
-    headers = {
-        "authorization": assemblyai_api_key,
-        "content-type": "application/json",
-    }
+        return formatted_time, formatted_month
+    except ValueError:
+        # Handle parsing errors
+        print("Error: Unable to parse date and time from the input.")
+        return None, None
 
-    data = {
-        "audio_channel": "1",
-        "sample_rate": 44100,
-        "language_model": "assemblyai_model",
-    }
+def parse_spoken_text(spoken_text):
+    # Improved logic for broader natural language understanding
+    event_name = None
+    event_time = None
+    event_month = None
 
-    response = requests.post(url, json=data, headers=headers, stream=True)
+    if "schedule" in spoken_text.lower() or "remind me to" in spoken_text.lower():
+        parts = spoken_text.lower().split("on")
+        if len(parts) == 2:
+            event_name = parts[0].strip()
+            time, month = extract_time_and_month(parts[1].strip())
+            if time and month:
+                event_time = time
+                event_month = month
 
-    if response.status_code == 200:
-        for chunk in audio_data:
-            response = requests.post(url, data=chunk, headers=headers)
-        result = response.json()
-        return result.get("text", "Error with AssemblyAI API")
-    else:
-        print(f"Error with AssemblyAI API: {response.text}")
-        return "Error with AssemblyAI API"
+    return event_name, event_time, event_month
 
 def store_event_in_database(event_name, event_time, event_month):
     cursor.execute("INSERT INTO events (event_name, event_time, event_month) VALUES (?, ?, ?)",
@@ -64,7 +69,7 @@ def store_event_in_database(event_name, event_time, event_month):
 def schedule_event(event_name, event_time, event_month):
     current_year = datetime.now().year
     event_date_str = f"{event_month} {event_time} {current_year}"
-    event_date = datetime.strptime(event_date_str, "%B %d %I %p %Y")
+    event_date = datetime.strptime(event_date_str, "%B %d %I:%M %p %Y")
 
     alert_time = event_date - timedelta(minutes=15)
 
@@ -108,7 +113,7 @@ def recognize_and_respond():
         while True:
             try:
                 print("Listening... ")
-                audio_data = recognizer.listen(source, timeout=5.0, phrase_time_limit=10)
+                audio_data = recognizer.listen(source, timeout=None)
                 
                 spoken_text = recognizer.recognize_google(audio_data)
                 print(spoken_text)
@@ -120,21 +125,24 @@ def recognize_and_respond():
                         engine.say("Yes, I can hear you.")
                         engine.runAndWait()
                     else:
-                        response_from_assemblyai = get_response_from_assemblyai(audio_data)
-
-                        print(f"Assistant's Response: {response_from_assemblyai}")
-                        engine.say(response_from_assemblyai)
-                        engine.runAndWait()
-
-                        event_name, event_time, event_month = parse_spoken_text(response_from_assemblyai)
+                        event_name, event_time, event_month = parse_spoken_text(spoken_text)
 
                         if event_name and event_time and event_month:
-                            schedule_event(event_name, event_time, event_month)
+                            response = f"Scheduled: {event_name} at {event_time} on {event_month}"
+                            engine.say(response)
+                            engine.runAndWait()
+
+                            alert_time = schedule_event(event_name, event_time, event_month)
+
+                            # Continuous checking for scheduled events
+                            event_details = check_scheduled_events()
+
+                            if event_details:
+                                response = f"Scheduled event arrived: {event_details[0]} at {event_details[1]}"
+                                engine.say(response)
+                                engine.runAndWait()
                         else:
                             print("Failed to parse event details.")
-
-                # Continuous checking for scheduled events
-                event_details = check_scheduled_events()
 
             except sr.UnknownValueError:
                 print("Didn't recognize anything.")
