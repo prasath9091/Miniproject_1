@@ -24,12 +24,10 @@ cursor.execute('''
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         event_name TEXT,
         event_time TEXT,
-        event_month TEXT,
-        event_date TEXT
+        event_month TEXT
     )
 ''')
 conn.commit()
-
 
 def extract_time_and_month(text):
     try:
@@ -53,10 +51,14 @@ def parse_spoken_text(spoken_text):
     return event_name, event_time, event_month
 
 
-def store_event_in_database(event_name, event_time, event_month, event_date):
-    cursor.execute("INSERT INTO events (event_name, event_time, event_month, event_date) VALUES (?, ?, ?, ?)",
-                   (event_name, event_time, event_month, event_date))
+def store_event_in_database(event_name, event_time, event_month):
+    cursor.execute("INSERT INTO events (event_name, event_time, event_month) VALUES (?, ?, ?)",
+                   (event_name, event_time, event_month))
     conn.commit()
+
+    print(f"Event '{event_name}' successfully stored in the database.")
+
+
 
 def schedule_event(event_name, event_time, event_month):
     current_year = datetime.now().year
@@ -70,14 +72,14 @@ def schedule_event(event_name, event_time, event_month):
 
     try:
         # Use dateutil.parser.parse for flexible parsing
-        event_datetime = dateutil.parser.parse(event_date_str, fuzzy=True)
+        event_date = dateutil.parser.parse(event_date_str, fuzzy=True)
     except ValueError:
         print(f"Failed to parse event details: {event_name} at {event_time} on {event_month}")
         return None
 
-    alert_time = event_datetime - timedelta(minutes=15)
+    alert_time = event_date - timedelta(minutes=15)
 
-    store_event_in_database(event_name, event_time, event_month, alert_time.date())  # Updated line
+    store_event_in_database(event_name, event_time, event_month)  # Store event in the database
 
     print(f"Event scheduled: {event_name} at {event_time} on {event_month}")
 
@@ -85,10 +87,11 @@ def schedule_event(event_name, event_time, event_month):
 
 
 
-def alert_user(event_name, event_time, event_date):
-    print(f"Event alert: {event_name} at {event_time} on {event_date}")
-    engine.say(f"Event alert: {event_name} at {event_time} on {event_date}")
+def alert_user(event_name, event_time):
+    print(f"Event alert: {event_name} at {event_time}")
+    engine.say(f"Event alert: {event_name} at {event_time}")
     engine.runAndWait()
+
 
 def check_scheduled_events():
     try:
@@ -96,26 +99,20 @@ def check_scheduled_events():
         row = cursor.fetchone()
 
         if row:
-            event_name, event_time, event_month, event_date = row[1], row[2], row[3], row[4]
-
-            # Convert month name to a numeric month
-            month_number = datetime.strptime(event_month, "%B").month
-
-            # Format the date explicitly
-            formatted_date = f"{event_date}-{month_number:02d}"
-
-            event_datetime = dateutil.parser.parse(f"{formatted_date} {event_time}")
+            event_name, event_time, event_month = row[1], row[2], row[3]
+            event_datetime = dateutil.parser.parse(f"{event_month} {event_time} {datetime.now().year}", fuzzy=True)
 
             now = datetime.now()
-            if now.date() == event_datetime.date() and now >= event_datetime:
-                alert_user(event_name, event_time, event_date)
-                print(f"Scheduled event arrived: {event_name} at {event_time} on {event_date}")
+            scheduled_date = event_datetime.replace(year=now.year)
+
+            if now.date() == scheduled_date.date() and now >= event_datetime:
+                alert_user(event_name, event_time)
+                print(f"Scheduled event arrived: {event_name} at {event_time}")
 
             return event_name, event_time
 
     except Exception as e:
         print(f"Error checking scheduled events: {e}")
-
 
 
 
