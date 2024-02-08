@@ -11,7 +11,7 @@ from googletrans import Translator
 engine = pyttsx3.init()
 engine.setProperty('rate', 150)
 news_api_key = "9418fb20ee6f46ff8fa490b718adec"
-merriam_webster_api_key = "YOUR_MERRIAM_WEBSTER_API_KEY"  # Replace with your Merriam-Webster API key
+merriam_webster_api_key = "b43367a0-479c-452b-a323-c568ed302b"
 
 # Get the current script's directory
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -233,12 +233,16 @@ def get_news_headlines(country='in', category='general', language='en', page_siz
         print(f"Failed to fetch news headlines. Status code: {response.status_code}")
         return []
 
-def get_word_meaning(word):
-    url = f'https://www.dictionaryapi.com/api/v3/references/collegiate/json/{word}?key={merriam_webster_api_key}'
+# new change
+def get_word_meaning(word, api_key):
+    url = f"https://www.dictionaryapi.com/api/v3/references/learners/json/{word}?key={api_key}"
+
     try:
         response = requests.get(url)
+
         if response.status_code == 200:
             data = response.json()
+            
             if isinstance(data, list):
                 if data:
                     meaning = data[0].get('shortdef', ['Meaning not found'])[0]
@@ -249,9 +253,11 @@ def get_word_meaning(word):
                 return "Meaning not found"
         else:
             return "Meaning not found"
+
     except Exception as e:
         print(f"Error fetching meaning for '{word}': {e}")
         return "Meaning not found"
+
 
 def recognize_and_respond():
     recognizer = sr.Recognizer()
@@ -292,7 +298,7 @@ def recognize_and_respond():
                         words = spoken_text.lower().split("define")
                         if len(words) > 1:
                             word_to_define = words[1].strip()
-                            meaning = get_word_meaning(word_to_define)
+                            meaning = get_word_meaning(word_to_define, merriam_webster_api_key)
                             if meaning:
                                 print(f"The meaning of '{word_to_define}' is: {meaning}")
                                 engine.say(f"The meaning of '{word_to_define}' is: {meaning}")
@@ -329,7 +335,6 @@ def recognize_and_respond():
                 print("Didn't recognize anything.")
             except sr.RequestError as e:
                 print(f"Error with the Google Speech Recognition service: {e}")
-
 
 if __name__ == "__main__":
     try:
